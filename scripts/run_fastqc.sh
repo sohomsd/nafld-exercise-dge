@@ -17,9 +17,9 @@ if [ ! -d "samples" ]; then
 fi
 
 # Check if qc directory already exists and create otherwise
-if [ ! -d "qc" ]; then
-  mkdir qc 
-  echo -e "### Created 'qc' directory ###\n"
+if [ ! -d "qc/fastqc" ]; then
+  mkdir -p qc/fastqc 
+  echo -e "### Created 'qc/fastqc' directory ###\n"
 fi
 
 # Create a temporary file to store MGI adapters for use in the fastqc command
@@ -28,7 +28,12 @@ echo -e "MGI_adapter1\tAGATCGGAAGAGCACACGTCTGAACTCCAGTCAC\nMGI_adapter2\tAGATCGG
 conda activate angsd
 
 # Run fastqc on all of the samples, searching for adapters in the temporary adapters file
-fastqc samples/*fastq.gz --extract --delete -t 6 -a temp_adapters.txt -o qc/
+fastqc samples/*fastq.gz --extract --delete -t 6 -a temp_adapters.txt -o qc/fastqc/
+
+conda activate multiqc
+
+# Run multiqc to combine reports
+multiqc -o qc/ -n fastqc_total_report -i "Untrimmed Sample FastQC" qc/fastqc/
 
 # Remove temporary files
 rm temp_adapters.txt

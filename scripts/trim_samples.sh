@@ -49,6 +49,11 @@ for s in ${sample_names}; do
 
 done
 
+conda activate multiqc
+
+# Run MultiQC on trimmed fastqc files
+multiqc -o qc/ -n trimmed_fastqc_total_report -i "Trimmed Sample FastQC" qc/trimmed/
+
 # Remove temporary files
 rm temp_adapters.txt
 
