@@ -8,6 +8,8 @@
 #SBATCH --time=06:00:00
 #SBATCH --mem=40G
 
+cd ../
+
 # Check if reference directory already exists
 if [ ! -d "samples" ]; then
   echo "samples directory not found"

@@ -9,12 +9,12 @@
 #SBATCH --mem=40G
 
 # Check if reference directory already exists and create otherwise
-if [ ! -d "reference" ]; then
-  mkdir reference
+if [ ! -d "../reference" ]; then
+  mkdir ../reference
   echo -e "### Created 'reference' directory ###\n"
 fi
 
-cd reference
+cd ../reference
 
 # Check if genome fa file exists and download otherwise
 if [ ! -f "GRCm39.primary_assembly.genome.fa" ]; then

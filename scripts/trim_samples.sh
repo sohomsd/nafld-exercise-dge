@@ -8,6 +8,8 @@
 #SBATCH --time=16:00:00
 #SBATCH --mem=40G
 
+cd ../
+
 # Check if samples directory exists, otherwise exit program
 if [ ! -d "samples" ]; then
   echo "samples directory not found"

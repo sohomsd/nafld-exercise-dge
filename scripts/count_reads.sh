@@ -8,6 +8,8 @@
 #SBATCH --time=6:00:00
 #SBATCH --mem=40G
 
+cd ../
+
 # Check if featureCounts directory exists, otherwise create directory
 if [ ! -d "featureCounts" ]; then
   mkdir featureCounts
@@ -20,7 +22,7 @@ conda activate angsd
 # This is run in paired end mode and counting read pairs
 # Summarization is performed at meta-feature (gene_id) level
 featureCounts -a reference/gencode.vM36.basic.annotation.gtf \
--o featureCounts/read_counts_exon \
+-o featureCounts/read_counts_gene \
 -p --countReadPairs \
 -t exon \
 -g gene_id \
