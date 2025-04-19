@@ -1,0 +1,8 @@
+qc/*/
+
+# R related files
+*.Rproj
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user
