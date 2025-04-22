@@ -1,4 +1,9 @@
 qc/*/
+!qc/qorts/
+qc/qorts/*/*
+!qc/qorts/*/QC.geneBodyCoverage.byExpr.avgPct.txt.gz
+
+
 featureCounts/
 
 # R related files
