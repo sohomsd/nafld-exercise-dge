@@ -1,0 +1,182 @@
+---
+title: "Exploration of Read Counts"
+author: "Sohom Dash"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The following libraries will be needed for the exploration steps in this document.
+```{r import_libraries, warning=FALSE, message=FALSE}
+library(ggplot2)
+library(DESeq2)
+library(vsn)
+library(pheatmap)
+library(magrittr)
+```
+
+The DESeq2 object is created along with other relevant environment variables.
+```{r source_DESeq2_object_creation_script, warning=FALSE}
+source("../scripts/process_DESeq2_object.R")
+```
+The condition is releveled so that NC is a reference for the first DGE and GSEA
+```{r relevel_conditions}
+nafld_dds$condition %<>% relevel(ref="NC")
+nafld_dds$condition
+nafld_dds %<>% DESeq()
+```
+A plot showing the distribution of adjusted p-values for the HFD vs NC DGE
+```{r results_df}
+HFD_vs_NC_results <- results(nafld_dds, name="condition_HFD_vs_NC", independentFiltering = TRUE, alpha = 0.05)
+HFD_vs_NC_results$padj %>% hist(breaks=19, main="Adjusted p-values for HFD vs NC")
+```
+
+A heat map for the row based z score of the DGE for HFD vs NC, with a dendrogram to cluster the samples based on this z score.
+
+```{r heatmap_dge}
+HFD_vs_NC_results_sorted <- HFD_vs_NC_results %>% `[`(order(.$padj),)
+rlog_dge <- nafld_rlog[rownames(subset(HFD_vs_NC_results_sorted, padj < 0.05)), ] %>% assay
+pheatmap(rlog_dge, scale="row", show_rownames=FALSE, main="DGE (row-based z-score")
+```
+The MA plots showing the effect of Log Fold Change shrinkage with apeglm
+
+```{r MA_plot, fig.width=10}
+par(mfrow=c(1,2))
+
+plotMA(HFD_vs_NC_results_sorted, alpha=0.05,
+       main="Test: p.adj.value < 0.05", ylim = c(-8,8))
+
+df_results_shrunk <- lfcShrink(nafld_dds,
+                               coef="condition_HFD_vs_NC", 
+                               type="apeglm")
+
+plotMA(df_results_shrunk, alpha=0.05,
+       main="Test: p.adj.value < 0.05 with LFC Shrinkage", ylim = c(-8,8))
+```
+A volcano plot showing the differentially expressed genes with LFC shrinkage applied.
+```{r volcano_plot}
+EnhancedVolcano::EnhancedVolcano(df_results_shrunk, lab=rownames(df_results_shrunk), 
+                       x='log2FoldChange', y='padj', pCutoff = 0.05, 
+                       title="with logFC shrinkage")
+```
+Gene set enrichment analysis (GSEA) conducted on the HFD vs NC diffrentially expressed genes, ranked by log fold change.
+
+```{r gsea_HFD_vs_NC, warning=FALSE, message=FALSE}
+library(clusterProfiler)
+library(enrichplot)
+library(ggplot2)
+library(DOSE)
+
+# Rank genes by log fold change in decreasing order
+gene_list <- HFD_vs_NC_results$log2FoldChange
+names(gene_list) <- rownames(HFD_vs_NC_results)
+gene_list <- sort(gene_list, decreasing = TRUE)
+
+# Perform GSEA
+gse <- gseGO(geneList=gene_list,
+             ont ="ALL",
+             keyType = "ENSEMBL",
+             minGSSize = 3,
+             maxGSSize = 800,
+             pvalueCutoff = 0.05,
+             verbose = TRUE,
+             OrgDb = "org.Mm.eg.db",
+             pAdjustMethod = "BH")
+```
+Dot plot and GSEA plots for the HFD vs NC GSEA analysis. Dot plot shows the top 10 gene sets ranked by adjusted p-value for activated and suppressed gene sets.
+
+```{r dotplot_gsea_plot}
+dotplot(gse, showCategory=10, split=".sign") + facet_grid(.~.sign)
+gseaplot(gse, by = "all", title = gse$Description[1], geneSetID = 1)
+```
+
+The DESeq2 object is releved with resepect to HFD to allow for comparison of enriched gene sets that change in the AE and RE conditions with respect to the HFD condition.
+
+```{r relevel_to_HFD, warning=FALSE, message=FALSE}
+nafld_dds$condition %<>% relevel(ref="HFD")
+hfd_ref_dds <- nafld_dds %>% DESeq()
+```
+
+The ranked gene lists are also prepared in a similar way using indepedentFiltering for the DGE.
+
+```{r AE_RE_rank_gene_lists}
+AE_vs_HFD_results <- results(hfd_ref_dds, name="condition_AE_vs_HFD", independentFiltering = TRUE, alpha = 0.05)
+RE_vs_HFD_results <- results(hfd_ref_dds, name="condition_RE_vs_HFD", independentFiltering = TRUE, alpha = 0.05)
+
+gene_list_AE <- AE_vs_HFD_results$log2FoldChange
+names(gene_list_AE) <- rownames(AE_vs_HFD_results)
+gene_list_AE <- sort(gene_list_AE, decreasing = TRUE)
+
+gene_list_RE <- RE_vs_HFD_results$log2FoldChange
+names(gene_list_RE) <- rownames(RE_vs_HFD_results)
+gene_list_RE <- sort(gene_list_RE, decreasing = TRUE)
+```
+
+
+Gene set enrichment analysis (GSEA) conducted on the AE vs HFD and RE vs HFD diffrentially expressed genes, ranked by log fold change.
+```{r gsea_test, warning=FALSE, message=FALSE}
+gse_AE_vs_HFD <- gseGO(geneList=gene_list_AE,
+                       ont ="ALL",
+                       keyType = "ENSEMBL",
+                       minGSSize = 3,
+                       maxGSSize = 800,
+                       pvalueCutoff = 0.05,
+                       verbose = TRUE,
+                       OrgDb = "org.Mm.eg.db",
+                       pAdjustMethod = "BH")
+
+gse_RE_vs_HFD <- gseGO(geneList=gene_list_RE,
+                       ont ="ALL",
+                       keyType = "ENSEMBL",
+                       minGSSize = 3,
+                       maxGSSize = 800,
+                       pvalueCutoff = 0.05,
+                       verbose = TRUE,
+                       OrgDb = "org.Mm.eg.db",
+                       pAdjustMethod = "BH")
+```
+
+
+The dot plot and GSEA plots are shown for both of the GSEAs that were run above.
+
+```{r dotplot_gsea_plot_AE}
+dotplot(gse_AE_vs_HFD, showCategory=10, split=".sign") + facet_grid(.~.sign)
+gseaplot(gse_AE_vs_HFD, by = "all", title = gse$Description[1], geneSetID = 1)
+```
+
+```{r dotplot_gsea_plot_RE}
+dotplot(gse_RE_vs_HFD, showCategory=10, split=".sign") + facet_grid(.~.sign)
+gseaplot(gse_RE_vs_HFD, by = "all", title = gse$Description[1], geneSetID = 1)
+```
+To compare how the gene sets that were identified in the HFD vs NC GSEA are enriched for genes which are activated or suppressed in the AE vs HFD and RE vs HFD GSEA, a bar plot of the enrichment score for these gene sets is created.
+
+```{r enrichment_score_bar_plot, warning=FALSE, message=FALSE, fig.height=9}
+library(tidyverse)
+
+# Get top GO terms ranked by adjusted p value in activated and suppressed categories
+top_GO <- c(gse@result %>% filter(enrichmentScore > 0) %>% slice_min(p.adjust, n=10, with_ties = FALSE) %>% pull(ID), 
+            gse@result %>% filter(enrichmentScore < 0) %>% slice_min(p.adjust, n=10, with_ties = FALSE) %>% pull(ID))
+
+# Filter GSEA results by the top GO terms above and select Description and Enrichment Score for all comparisons
+desc_ES_HFD_vs_NC <- gse@result %>% filter(ID %in% top_GO) %>% select(Description, enrichmentScore)
+desc_ES_AE_vs_HFD <- gse_AE_vs_HFD@result %>% filter(ID %in% top_GO) %>% select(Description, enrichmentScore)
+desc_ES_RE_vs_HFD <- gse_RE_vs_HFD@result %>% filter(ID %in% top_GO) %>% select(Description, enrichmentScore)
+
+# Combine filtered dataframes from above and add condition and sign fields
+total_enrichment_scores <- bind_rows(desc_ES_HFD_vs_NC %>% mutate(condition="HFD"),
+                                     desc_ES_AE_vs_HFD %>% mutate(condition="AE"),
+                                     desc_ES_RE_vs_HFD %>% mutate(condition="RE")) %>%
+  mutate(sign=if_else(enrichmentScore < 0, "Suppressed", "Activated"))
+
+# Bar plot to show enrichment score for various conditions
+ggplot(total_enrichment_scores, aes(x=enrichmentScore, y=Description, fill=sign)) + 
+  geom_bar(stat="identity", position = position_dodge(preserve="single")) + 
+  scale_y_discrete(labels = function(x) str_wrap(x, width = 12)) + 
+  scale_fill_manual(values=c("palegreen3", "indianred3")) +
+  geom_vline(xintercept = 0, linetype="dashed") + 
+  facet_wrap(vars(condition))
+```

@@ -1,0 +1,107 @@
+---
+title: "Exploration of Read Counts"
+author: "Sohom Dash"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The following libraries will be needed for the exploration steps in this document.
+```{r import_libraries, warning=FALSE, message=FALSE}
+library(ggplot2)
+library(DESeq2)
+library(vsn)
+library(pheatmap)
+library(magrittr)
+```
+
+The DESeq2 object is created along with other relevant environment variables.
+```{r source_DESeq2_object_creation_script, warning=FALSE}
+source("../scripts/process_DESeq2_object.R")
+```
+## Distribution of read counts 
+
+Below is the number of reads that were sequenced for each sample. These will count the number of reads for which each paired end overlapped with the gene.
+```{r reads_per_sample}
+colSums(counts(nafld_dds)) %>% barplot(main="Read Counts per Sample", 
+                                       ylab="Count", 
+                                       ylim=c(0, 43000000), 
+                                       las=2)
+```
+## Effect of size-factor normalization
+
+The effect of size-factor normalization can then be viewed below in the boxplot of read counts for each sample.
+```{r view_normalization_box_plots, fig.width=8}
+par(mfrow=c(1,2))
+
+boxplot(log2(counts(nafld_dds) +1), notch=TRUE, 
+        main = "Non-normalized read counts", 
+        ylab ="log2(read counts)", cex = .6, las=2)
+
+boxplot(assay(nafld_dds, "log_norm_counts"), notch=TRUE, 
+        main = "Size-factor-normalized read counts",
+        ylab ="log2(read counts)", cex = .6, las=2)
+```
+
+## Reducing the variance-mean dependence of read counts
+
+In the first plot, it is clear that the there is some variance-mean dependence (The running median estimator line is not flat). However, after using rlog transform, this dependence is greatly reduced. In this case, the median estimator line is much more flat.
+
+
+```{r rlog_data_variance_mean_plots}
+msd_plot <- meanSdPlot(assay(nafld_dds, "log_norm_counts"), ranks=FALSE, plot = FALSE)
+msd_plot$gg + 
+  ggtitle("Sequencing depth normalized log2(read counts)") + 
+  ylab("standard deviation") + 
+  coord_cartesian(ylim = c(0,4))
+```
+
+
+```{r rlog_data_variance_mean_plots_rlog}
+msd_plot <- meanSdPlot(assay(nafld_rlog), ranks=FALSE, plot = FALSE)
+msd_plot$gg + 
+  ggtitle("Sequencing depth normalized log2(read counts) following rlog") + 
+  ylab("standard deviation") + 
+  coord_cartesian(ylim = c(0,4))
+```
+## Plotting a correlation heat map of the samples
+
+The rlog log-normalized read counts were used to generate a correlation score between samples. This correlation score can then be used (1 - correlation score) to generate a heat map outlining the pairwise sample similarity. A dendrogram is produced above for complete hierarchical clustering.
+
+```{r sample_correlation_heatmap}
+corr_coeff <- cor(assay(nafld_rlog), method="pearson")
+as.matrix(as.dist(1-corr_coeff)) %>%
+  pheatmap(main="1 - Pearson Correlation Coefficient", treeheight_row=0)
+```
+A dendrogram by itself can be generated using complete hierarchical clustering.
+
+```{r dendrogram}
+as.dist(1-cor(assay(nafld_rlog), method="pearson")) %>%
+  hclust(method="complete") %>%
+    plot(labels=colnames(.), main="rlog transformed read counts", 
+         sub="")
+```
+## PCA
+
+A PCA can be conducted of the genes as features (using the rlog log-normalized read counts), and different combinations of the top 3 PCs is used to try to separate the samples.
+
+```{r pca, message=FALSE}
+pca_results <- as.data.frame(prcomp(t(assay(nafld_rlog)))$x)
+pca_results$sample = rownames(pca_results)
+pca_results$condition = gsub("[0-9]", "", pca_results$sample)
+
+PC1_v_PC2 <- ggplot(pca_results, aes(x=PC1, y=PC2, color=condition)) + 
+  geom_point(size=3)
+
+PC1_v_PC3 <- ggplot(pca_results, aes(x=PC1, y=PC3, color=condition)) + 
+  geom_point(size=3)
+
+PC2_v_PC3 <- ggplot(pca_results, aes(x=PC2, y=PC3, color=condition)) + 
+  geom_point(size=3)
+
+cowplot::plot_grid(PC1_v_PC2, PC1_v_PC3, PC2_v_PC3, ncol=2)
+```
